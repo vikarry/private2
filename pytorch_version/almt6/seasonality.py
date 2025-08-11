@@ -1,282 +1,158 @@
-"""
-Simple Yearly Seasonality Analysis for Prepayment CPR
-Focus on yearly patterns and overall data analysis only
-"""
-
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
+import numpy as np
+from statsmodels.tsa.seasonal import seasonal_decompose
 
+# Read the CSV file
+df = pd.read_csv('your_file.csv')
 
-def simple_yearly_analysis(results_data):
-    """
-    Simple analysis of yearly prepayment patterns
+# Convert month to datetime and set as index
+df['month'] = pd.to_datetime(df['month'])
+df.set_index('month', inplace=True)
+df.sort_index(inplace=True)
 
-    Parameters:
-    results_data: DataFrame from AGGPREPAY function with CPR data
+# Perform classical decomposition - additive
+decomposition_add = seasonal_decompose(df['rate'], model='additive', period=12)
 
-    Returns:
-    Dictionary with yearly analysis results
-    """
+# Perform classical decomposition - multiplicative
+decomposition_mult = seasonal_decompose(df['rate'], model='multiplicative', period=12)
 
-    # Prepare data
-    if isinstance(results_data, dict) and 'agg' in results_data:
-        data = results_data['agg'].copy()
-    else:
-        data = results_data.copy()
+# Create comprehensive plots
+fig, axes = plt.subplots(4, 2, figsize=(18, 16))
 
-    # Reset index if needed
-    if not isinstance(data.index, pd.DatetimeIndex):
-        data = data.reset_index()
-        if 'COB Date' in data.columns:
-            data['date'] = pd.to_datetime(data['COB Date'])
-        else:
-            data['date'] = pd.to_datetime(data.index)
-    else:
-        data['date'] = data.index
+# Additive decomposition plots
+axes[0, 0].plot(df.index, df['rate'], color='blue', linewidth=1.5)
+axes[0, 0].set_title('Original Time Series - Additive', fontweight='bold')
+axes[0, 0].set_ylabel('Rate')
+axes[0, 0].grid(True, alpha=0.3)
 
-    # Add year column
-    data['year'] = data['date'].dt.year
+axes[1, 0].plot(decomposition_add.trend.index, decomposition_add.trend, color='red', linewidth=2)
+axes[1, 0].set_title('Trend Component - Additive', fontweight='bold')
+axes[1, 0].set_ylabel('Trend')
+axes[1, 0].grid(True, alpha=0.3)
 
-    # Yearly statistics
-    yearly_stats = data.groupby('year').agg({
-        'annual CPR': ['mean', 'std', 'min', 'max', 'count'],
-        'exposure': ['mean', 'sum'] if 'exposure' in data.columns else ['count'],
-        'prepay': ['sum'] if 'prepay' in data.columns else ['count']
-    }).round(4)
+axes[2, 0].plot(decomposition_add.seasonal.index, decomposition_add.seasonal, color='green', linewidth=1)
+axes[2, 0].set_title('Seasonal Component - Additive', fontweight='bold')
+axes[2, 0].set_ylabel('Seasonal')
+axes[2, 0].grid(True, alpha=0.3)
 
-    # Flatten column names
-    yearly_stats.columns = ['_'.join(col).strip() for col in yearly_stats.columns]
+axes[3, 0].plot(decomposition_add.resid.index, decomposition_add.resid, color='purple', linewidth=1, alpha=0.7)
+axes[3, 0].set_title('Residual Component - Additive', fontweight='bold')
+axes[3, 0].set_ylabel('Residual')
+axes[3, 0].set_xlabel('Month')
+axes[3, 0].grid(True, alpha=0.3)
+axes[3, 0].axhline(y=0, color='black', linestyle='--', alpha=0.5)
 
-    # Calculate year-over-year changes
-    yearly_stats['yoy_cpr_change'] = yearly_stats['annual CPR_mean'].pct_change()
-    yearly_stats['yoy_exposure_change'] = yearly_stats.get('exposure_mean', yearly_stats.iloc[:, 0]).pct_change()
+# Multiplicative decomposition plots
+axes[0, 1].plot(df.index, df['rate'], color='blue', linewidth=1.5)
+axes[0, 1].set_title('Original Time Series - Multiplicative', fontweight='bold')
+axes[0, 1].set_ylabel('Rate')
+axes[0, 1].grid(True, alpha=0.3)
 
-    # Overall statistics
-    overall_stats = {
-        'total_observations': len(data),
-        'date_range': f"{data['date'].min().strftime('%Y-%m-%d')} to {data['date'].max().strftime('%Y-%m-%d')}",
-        'overall_mean_cpr': data['annual CPR'].mean(),
-        'overall_std_cpr': data['annual CPR'].std(),
-        'overall_min_cpr': data['annual CPR'].min(),
-        'overall_max_cpr': data['annual CPR'].max(),
-        'years_covered': len(data['year'].unique()),
-        'avg_observations_per_year': len(data) / len(data['year'].unique())
-    }
+axes[1, 1].plot(decomposition_mult.trend.index, decomposition_mult.trend, color='red', linewidth=2)
+axes[1, 1].set_title('Trend Component - Multiplicative', fontweight='bold')
+axes[1, 1].set_ylabel('Trend')
+axes[1, 1].grid(True, alpha=0.3)
 
-    # Year-to-year volatility
-    if len(yearly_stats) > 1:
-        cpr_volatility = yearly_stats['annual CPR_mean'].std()
-        overall_stats['yearly_cpr_volatility'] = cpr_volatility
-        overall_stats['coefficient_of_variation'] = cpr_volatility / yearly_stats['annual CPR_mean'].mean()
+axes[2, 1].plot(decomposition_mult.seasonal.index, decomposition_mult.seasonal, color='green', linewidth=1)
+axes[2, 1].set_title('Seasonal Component - Multiplicative', fontweight='bold')
+axes[2, 1].set_ylabel('Seasonal')
+axes[2, 1].grid(True, alpha=0.3)
+axes[2, 1].axhline(y=1, color='black', linestyle='--', alpha=0.5)
 
-    return {
-        'yearly_stats': yearly_stats,
-        'overall_stats': overall_stats,
-        'raw_data': data
-    }
+axes[3, 1].plot(decomposition_mult.resid.index, decomposition_mult.resid, color='purple', linewidth=1, alpha=0.7)
+axes[3, 1].set_title('Residual Component - Multiplicative', fontweight='bold')
+axes[3, 1].set_ylabel('Residual')
+axes[3, 1].set_xlabel('Month')
+axes[3, 1].grid(True, alpha=0.3)
+axes[3, 1].axhline(y=1, color='black', linestyle='--', alpha=0.5)
 
+plt.tight_layout()
+plt.show()
 
-def plot_yearly_trends(analysis_results):
-    """Create simple plots for yearly trends"""
+# Create seasonal pattern comparison
+fig, axes = plt.subplots(2, 2, figsize=(15, 10))
 
-    yearly_stats = analysis_results['yearly_stats']
+# Monthly seasonal patterns
+df['month_num'] = df.index.month
+month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+               'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-    # Create figure with subplots
-    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-    fig.suptitle('Yearly Prepayment Analysis', fontsize=16, fontweight='bold')
+# Additive seasonal pattern
+seasonal_add_monthly = decomposition_add.seasonal.groupby(decomposition_add.seasonal.index.month).mean()
+axes[0, 0].bar(range(1, 13), seasonal_add_monthly.values, color='skyblue', alpha=0.7)
+axes[0, 0].set_title('Additive Seasonal Pattern by Month')
+axes[0, 0].set_xlabel('Month')
+axes[0, 0].set_ylabel('Seasonal Component')
+axes[0, 0].set_xticks(range(1, 13))
+axes[0, 0].set_xticklabels(month_names, rotation=45)
+axes[0, 0].grid(True, alpha=0.3)
+axes[0, 0].axhline(y=0, color='red', linestyle='--', alpha=0.5)
 
-    # Plot 1: Yearly CPR trends
-    axes[0, 0].plot(yearly_stats.index, yearly_stats['annual CPR_mean'],
-                    marker='o', linewidth=2, markersize=8, color='blue')
-    axes[0, 0].fill_between(yearly_stats.index,
-                            yearly_stats['annual CPR_mean'] - yearly_stats['annual CPR_std'],
-                            yearly_stats['annual CPR_mean'] + yearly_stats['annual CPR_std'],
-                            alpha=0.3, color='blue')
-    axes[0, 0].set_title('Average CPR by Year (with ±1 Std Dev)')
-    axes[0, 0].set_xlabel('Year')
-    axes[0, 0].set_ylabel('Annual CPR')
-    axes[0, 0].grid(True, alpha=0.3)
+# Multiplicative seasonal pattern
+seasonal_mult_monthly = decomposition_mult.seasonal.groupby(decomposition_mult.seasonal.index.month).mean()
+axes[0, 1].bar(range(1, 13), seasonal_mult_monthly.values, color='lightcoral', alpha=0.7)
+axes[0, 1].set_title('Multiplicative Seasonal Pattern by Month')
+axes[0, 1].set_xlabel('Month')
+axes[0, 1].set_ylabel('Seasonal Component')
+axes[0, 1].set_xticks(range(1, 13))
+axes[0, 1].set_xticklabels(month_names, rotation=45)
+axes[0, 1].grid(True, alpha=0.3)
+axes[0, 1].axhline(y=1, color='red', linestyle='--', alpha=0.5)
 
-    # Plot 2: Year-over-Year changes
-    yoy_changes = yearly_stats['yoy_cpr_change'].dropna() * 100
-    colors = ['green' if x < 0 else 'red' for x in yoy_changes]
-    axes[0, 1].bar(yoy_changes.index, yoy_changes.values, color=colors, alpha=0.7)
-    axes[0, 1].set_title('Year-over-Year CPR Change (%)')
-    axes[0, 1].set_xlabel('Year')
-    axes[0, 1].set_ylabel('YoY Change (%)')
-    axes[0, 1].axhline(y=0, color='black', linestyle='-', alpha=0.5)
-    axes[0, 1].grid(True, alpha=0.3)
+# Residual analysis
+axes[1, 0].hist(decomposition_add.resid.dropna(), bins=30, alpha=0.7, color='purple', edgecolor='black')
+axes[1, 0].set_title('Additive Residuals Distribution')
+axes[1, 0].set_xlabel('Residual Value')
+axes[1, 0].set_ylabel('Frequency')
+axes[1, 0].axvline(x=0, color='red', linestyle='--', alpha=0.5)
 
-    # Plot 3: CPR Range by year (min/max)
-    axes[1, 0].fill_between(yearly_stats.index,
-                            yearly_stats['annual CPR_min'],
-                            yearly_stats['annual CPR_max'],
-                            alpha=0.5, color='orange', label='Min-Max Range')
-    axes[1, 0].plot(yearly_stats.index, yearly_stats['annual CPR_mean'],
-                    marker='o', color='red', linewidth=2, label='Mean')
-    axes[1, 0].set_title('CPR Range by Year')
-    axes[1, 0].set_xlabel('Year')
-    axes[1, 0].set_ylabel('Annual CPR')
-    axes[1, 0].legend()
-    axes[1, 0].grid(True, alpha=0.3)
+axes[1, 1].hist(decomposition_mult.resid.dropna(), bins=30, alpha=0.7, color='orange', edgecolor='black')
+axes[1, 1].set_title('Multiplicative Residuals Distribution')
+axes[1, 1].set_xlabel('Residual Value')
+axes[1, 1].set_ylabel('Frequency')
+axes[1, 1].axvline(x=1, color='red', linestyle='--', alpha=0.5)
 
-    # Plot 4: Data coverage
-    axes[1, 1].bar(yearly_stats.index, yearly_stats['annual CPR_count'],
-                   color='purple', alpha=0.7)
-    axes[1, 1].set_title('Number of Observations by Year')
-    axes[1, 1].set_xlabel('Year')
-    axes[1, 1].set_ylabel('Number of Observations')
-    axes[1, 1].grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
 
-    plt.tight_layout()
-    return fig
+# Print analysis summary
+print("CLASSICAL DECOMPOSITION ANALYSIS")
+print("=" * 50)
 
+print(f"\nData Period: {df.index.min().strftime('%Y-%m')} to {df.index.max().strftime('%Y-%m')}")
+print(f"Total Observations: {len(df)}")
+print(f"Original Series - Mean: {df['rate'].mean():.4f}, Std: {df['rate'].std():.4f}")
 
-def analyze_all_segments(prepay_results):
-    """
-    Analyze all segments in your prepayment results
+print("\nADDITIVE DECOMPOSITION:")
+print("-" * 25)
+print(f"Trend - Mean: {decomposition_add.trend.mean():.4f}, Std: {decomposition_add.trend.std():.4f}")
+print(f"Seasonal - Mean: {decomposition_add.seasonal.mean():.4f}, Std: {decomposition_add.seasonal.std():.4f}")
+print(f"Residual - Mean: {decomposition_add.resid.mean():.4f}, Std: {decomposition_add.resid.std():.4f}")
 
-    Parameters:
-    prepay_results: Your main prepay dictionary from the model
+print("\nMULTIPLICATIVE DECOMPOSITION:")
+print("-" * 30)
+print(f"Trend - Mean: {decomposition_mult.trend.mean():.4f}, Std: {decomposition_mult.trend.std():.4f}")
+print(f"Seasonal - Mean: {decomposition_mult.seasonal.mean():.4f}, Std: {decomposition_mult.seasonal.std():.4f}")
+print(f"Residual - Mean: {decomposition_mult.resid.mean():.4f}, Std: {decomposition_mult.resid.std():.4f}")
 
-    Returns:
-    Dictionary with analysis for each segment
-    """
+print("\nSEASONAL PATTERNS:")
+print("-" * 18)
+print("Month\t\tAdditive\tMultiplicative")
+for i, month in enumerate(month_names, 1):
+    add_val = seasonal_add_monthly.iloc[i-1]
+    mult_val = seasonal_mult_monthly.iloc[i-1]
+    print(f"{month}\t\t{add_val:8.4f}\t{mult_val:8.4f}")
 
-    all_analysis = {}
+# Model fit comparison
+add_fitted = decomposition_add.trend + decomposition_add.seasonal
+mult_fitted = decomposition_mult.trend * decomposition_mult.seasonal
 
-    # Extract all segments
-    for facility in prepay_results.keys():
-        if isinstance(prepay_results[facility], dict):
-            for product in prepay_results[facility].keys():
-                if 'result' in prepay_results[facility][product]:
-                    segment_name = f"{facility}_{product}"
-                    segment_data = prepay_results[facility][product]['result']
+add_mse = np.mean((df['rate'] - add_fitted)**2)
+mult_mse = np.mean((df['rate'] - mult_fitted)**2)
 
-                    try:
-                        analysis = simple_yearly_analysis(segment_data)
-                        all_analysis[segment_name] = analysis
-
-                        print(f"\n=== {segment_name} ===")
-                        print(f"Period: {analysis['overall_stats']['date_range']}")
-                        print(f"Overall CPR: {analysis['overall_stats']['overall_mean_cpr']:.2%}")
-                        print(f"CPR Volatility: {analysis['overall_stats']['overall_std_cpr']:.2%}")
-                        print(f"Years covered: {analysis['overall_stats']['years_covered']}")
-
-                        # Show yearly trends
-                        yearly = analysis['yearly_stats']
-                        if len(yearly) > 1:
-                            best_year = yearly['annual CPR_mean'].idxmin()
-                            worst_year = yearly['annual CPR_mean'].idxmax()
-                            print(f"Lowest CPR year: {best_year} ({yearly.loc[best_year, 'annual CPR_mean']:.2%})")
-                            print(f"Highest CPR year: {worst_year} ({yearly.loc[worst_year, 'annual CPR_mean']:.2%})")
-
-                    except Exception as e:
-                        print(f"Error analyzing {segment_name}: {e}")
-
-    return all_analysis
-
-
-def create_summary_table(all_analysis):
-    """Create a summary table of all segments"""
-
-    summary_data = []
-
-    for segment_name, analysis in all_analysis.items():
-        stats = analysis['overall_stats']
-        yearly_stats = analysis['yearly_stats']
-
-        # Calculate trend if multiple years
-        trend = "Stable"
-        if len(yearly_stats) > 1:
-            first_year_cpr = yearly_stats['annual CPR_mean'].iloc[0]
-            last_year_cpr = yearly_stats['annual CPR_mean'].iloc[-1]
-            change = (last_year_cpr - first_year_cpr) / first_year_cpr
-
-            if change > 0.1:
-                trend = "Increasing"
-            elif change < -0.1:
-                trend = "Decreasing"
-            else:
-                trend = "Stable"
-
-        summary_data.append({
-            'Segment': segment_name,
-            'Overall_CPR': f"{stats['overall_mean_cpr']:.2%}",
-            'CPR_Volatility': f"{stats['overall_std_cpr']:.2%}",
-            'Years_Covered': stats['years_covered'],
-            'Total_Observations': stats['total_observations'],
-            'Trend': trend,
-            'Min_CPR': f"{stats['overall_min_cpr']:.2%}",
-            'Max_CPR': f"{stats['overall_max_cpr']:.2%}"
-        })
-
-    summary_df = pd.DataFrame(summary_data)
-    return summary_df
-
-
-def simple_seasonality_integration(prepay_results):
-    """
-    Simple integration with your existing prepayment model
-    Just add this to your main script after AGGPREPAY calls
-    """
-
-    print("\n" + "=" * 60)
-    print("YEARLY SEASONALITY ANALYSIS")
-    print("=" * 60)
-
-    # Analyze all segments
-    all_analysis = analyze_all_segments(prepay_results)
-
-    # Create summary
-    summary_table = create_summary_table(all_analysis)
-    print("\n=== SUMMARY TABLE ===")
-    print(summary_table.to_string(index=False))
-
-    # Create plots for each segment
-    for segment_name, analysis in all_analysis.items():
-        if len(analysis['yearly_stats']) > 1:  # Only plot if multiple years
-            fig = plot_yearly_trends(analysis)
-            fig.suptitle(f'Yearly Analysis - {segment_name}', fontsize=16)
-            plt.show()
-
-    # Overall portfolio analysis (combine all segments)
-    print("\n=== PORTFOLIO LEVEL ANALYSIS ===")
-    all_data = []
-    for analysis in all_analysis.values():
-        all_data.append(analysis['raw_data'])
-
-    if all_data:
-        combined_data = pd.concat(all_data, ignore_index=True)
-        portfolio_analysis = simple_yearly_analysis(combined_data)
-
-        print(f"Portfolio CPR: {portfolio_analysis['overall_stats']['overall_mean_cpr']:.2%}")
-        print(f"Portfolio Volatility: {portfolio_analysis['overall_stats']['overall_std_cpr']:.2%}")
-
-        # Portfolio yearly plot
-        if len(portfolio_analysis['yearly_stats']) > 1:
-            fig = plot_yearly_trends(portfolio_analysis)
-            fig.suptitle('Portfolio Level - Yearly Analysis', fontsize=16)
-            plt.show()
-
-    return all_analysis, summary_table
-
-
-# Simple usage example
-if __name__ == "__main__":
-    # After your existing model runs, just add:
-    # all_analysis, summary = simple_seasonality_integration(prepay)
-
-    print("Simple Yearly Seasonality Analysis")
-    print("=" * 50)
-    print("\nTo use with your existing model:")
-    print("1. Run your existing prepayment model")
-    print("2. Call: simple_seasonality_integration(prepay)")
-    print("3. Review yearly trends and summary table")
-    print("\nThis will show:")
-    print("- Year-over-year CPR changes")
-    print("- Overall statistics by segment")
-    print("- Simple trend analysis")
-    print("- Portfolio-level summary")
+print(f"\nMODEL FIT COMPARISON:")
+print("-" * 21)
+print(f"Additive MSE: {add_mse:.6f}")
+print(f"Multiplicative MSE: {mult_mse:.6f}")
+print(f"Better model: {'Additive' if add_mse < mult_mse else 'Multiplicative'}")
