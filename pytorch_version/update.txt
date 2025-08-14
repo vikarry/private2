@@ -1,0 +1,51 @@
+1. Data downloading:
+
+Triton database -> on the top left select [Reports] -> CIB -> Global Banking -> Global Banking Balance Sheet
+Copy the report snippet from ALMT6.txt then select Reports -> load Report Snippet Paste and load the snippet. Make sure to change the date to the desired month and year.
+To export the report, right click -> Export
+
+Save all the month's report in a single folder. Run data_preprocess.py to process and concatenate all months into a single file.
+
+2. In main.py, provide the data path for all previous data and the new year's data
+Change trans = True for blended and trans=false for unblended on line 564. Make sure to change the output dir path accordingly.
+In the output, you should see 8 files:
+	1. RCF_UNDRAWN_COMMITED
+	2. RCF_DRAWN
+	3. Other_UNDRAWN_COMMITED
+	4. Other_DRAWN
+	5. exposure_ RCF_UNDRAWN_COMMITED
+	6. exposure_RCF_DRAWN
+	7. exposure_Other_UNDRAWN_COMMITED
+	8. exposure_Other_DRAWN
+
+Open Other_DRAWN and RCF_DRAWN and new_methods.xlsx
+1. In the tab, for example,  NEW_METHOD_Blended_RCF, copy from RCF_DRAWN the over to the new_Methods these columns:
+	1. the date starting from 9/30/19 to the current month
+	2. exposure
+	3. repay
+2. Make sure the plot is using all data
+3. Repeat for Blended_Other, Unblended_Other, Unblended_RCF
+4. Save the plots and add to the performance monitoring documentation
+
+For Prime rate analysis
+1. Download the prime rate data from federal reserve
+2. Update the tab 'US Prime loan rate' in new_Methods.xlsx
+3. Calculate the bench mark: the average of the prime rate of the calibration period
+4. Update in the performance monitoring documentation on whether the average prime loan rate during the PM period changed more than 50pb or 30%
+5. To compute the plot, copy over prepayment rate for Unblended_RCF
+
+For OTD analysis
+1. Uncomment the line at 368 in main.py to produce '_res.csv' files
+2. Run the otd_monthly_calc.py to produce the OTD_FLAG files
+3. Sort and filter COB date for after 9/30/2019
+4. Select COB date and otdFlag column to generate plot
+5. Repeat for all scenarios
+
+For top_K Monthly analysis
+1. Produce the 'res.csv's (see OTD analysis section) and edit the file path in analyze_top_k_monthly.py
+2. Specify the starting date of the analysis in line 76 and run the script
+3. The file will output each prepayment proportions relative to the total prepayment of the month and calculate it's z-score, amount larger than 100M is worth taking a look at based on previous patterns
+
+For seasonality analysis
+1. Specify the file paths at the top
+2. Run seasonality_analysis.py to produce seasonality decomposition plots
